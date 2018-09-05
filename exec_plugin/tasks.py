@@ -12,6 +12,63 @@ from cloudify.exceptions import (
     OperationRetry)
 
 
+def verify_os_file_path(os_file_path):
+    if not os.path.exists(os_file_path):
+        return
+    return os_file_path
+
+
+def get_directory_by_property_name(property_name,
+                                   creation_action=None,
+                                   creation_action_args=None,
+                                   creation_action_kwargs=None):
+
+
+    directory = \
+        ctx.instance.runtime_properties.get(
+            property_name)
+
+    if not verify_os_file_path(directory):
+        ctx.logger.warn(
+            'No runtime property "{0}" set. '
+            'Creating new directory.'.format(property_name))
+        if creation_action_args and creation_action_kwargs:
+            directory = creation_action(
+                *creation_action_args, **creation_action_kwargs)
+        elif creation_action_args:
+            directory = creation_action(*creation_action_args)
+        elif creation_action_kwargs:
+            directory = creation_action(**creation_action_kwargs)
+        else:
+            directory = creation_action()
+        ctx.instance.runtime_properties[property_name] = \
+            directory
+
+    return verify_os_file_path(directory)
+
+
+def get_current_working_directory():
+    return get_directory_by_property_name(
+        'current_working_directory',
+        tempfile.mkdtemp)
+
+
+def get_blueprint_directory():
+    return get_directory_by_property_name(
+        'blueprint_directory',
+        lambda: '/opt/manager/resources/blueprints/{0}/{1}'.format(
+            ctx.tenant_name, ctx.blueprint.id))
+
+
+def extract_archive_from_path(archive_path, target_directory, intermediate_actions=None):
+    return_value = None
+    with zipfile.ZipFile(archive_path) as archive:
+        if intermediate_actions:
+            return_value = intermediate_actions()
+        archive.extractall(target_directory)
+        return return_value
+
+
 def get_package_dir(resource_dir='', resource_list=[], template_variables={}):
     """ Download resources and return the path. """
 
