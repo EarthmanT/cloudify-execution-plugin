@@ -23,6 +23,7 @@ setup(
     license='LICENSE',
     description='Execute something.',
     install_requires=[
-        'cloudify-common'
+        'cloudify-common',
+        'Jinja2>=2.9.0'
     ]
 )

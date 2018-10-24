@@ -59,6 +59,23 @@ def get_blueprint_directory():
             ctx.tenant_name, ctx.blueprint.id))
 
 
+def get_deployment_directory():
+    # In order to use update workflow, scripts should be taken from
+    # deployment directory. But to assure the possibility of using the
+    # plugin in install workflow (before the deployment directory is
+    # created), it returns this method returns blueprint directory,
+    # if deployment directory doesn't exist yet.
+    deployment_dir = get_directory_by_property_name(
+        'deployment_directory',
+        lambda: '/opt/manager/resources/deployments/{0}/{1}'.format(
+            ctx.tenant_name, ctx.deployment.id))
+
+    if deployment_dir:
+        return deployment_dir
+    else:
+        return get_blueprint_directory()
+      
+      
 def extract_archive_from_path(archive_path,
                               target_directory,
                               intermediate_actions=None):
@@ -92,8 +109,8 @@ def get_package_dir_from_dir_and_list(resource_dir,
     # Deal with ZIP files
     filename, extension = os.path.splitext(resource_dir)
     if extension == '.zip':
-        archive_path = os.path.join(get_blueprint_directory(), resource_dir)
-        target_directory = os.path.join(get_blueprint_directory(), filename)
+        archive_path = os.path.join(get_deployment_directory(), resource_dir)
+        target_directory = os.path.join(get_deployment_directory(), filename)
         resource_dir = filename
         extract_archive_from_path(archive_path, target_directory)
 
@@ -105,15 +122,16 @@ def get_package_dir_from_dir_and_list(resource_dir,
         if extension == '.zip':
             resource_list.remove(template_path)
             archive_path = os.path.join(
-                get_blueprint_directory(), resource_dir, template_path)
+                get_deployment_directory(), resource_dir, template_path)
             target_directory = os.path.join(
-                get_blueprint_directory(), resource_dir, filename)
+                get_deployment_directory(), resource_dir, filename)
             extract_archive_from_path(archive_path, target_directory)
 
             for extracted_template in os.walk(target_directory):
                 extracted_template_path = get_resource_relative_path(
                     extracted_template,
-                    os.path.join(get_blueprint_directory(), resource_dir))
+                    os.path.join(get_deployment_directory(), resource_dir))
+
                 if extracted_template[2]:
                     for filename in extracted_template[2]:
                         resource_list.append(
@@ -126,9 +144,10 @@ def get_package_dir_from_dir_and_list(resource_dir,
     # This loop goes through a directory defined in resource_dir parameter
     # and prepares a list of paths inside it.
     for resource_path in os.walk(os.path.join(
-            get_blueprint_directory(), resource_dir)):
+            get_deployment_directory(), resource_dir)):
         trimmed_resource_path = get_resource_relative_path(
-            resource_path, os.path.join(get_blueprint_directory()))
+            resource_path, os.path.join(get_deployment_directory()))
+
         if resource_path[2]:
             for filename in resource_path[2]:
                 merged_list.append(
@@ -157,13 +176,16 @@ def get_package_dir_from_dir_and_list(resource_dir,
             if e.errno != errno.EEXIST:
                 raise
 
-        ctx.download_resource_and_render(
-            download_from_file,
-            download_to_file,
-            template_variables.copy())
-
-        if os.path.splitext(download_to_file)[1] == '.py':
-            os.chmod(download_to_file, 0755)
+        try:
+            ctx.download_resource_and_render(
+                download_from_file,
+                download_to_file,
+                template_variables.copy())
+            if os.path.splitext(download_to_file)[1] == '.py':
+                os.chmod(download_to_file, 0755)
+        except IOError as e:
+            if e.errno != errno.EISDIR:
+                raise
 
         if download_from_file in merged_list:
             merged_list.remove(download_from_file)
@@ -187,12 +209,11 @@ def get_package_dir_from_dir_and_list(resource_dir,
             ctx.download_resource(
                 resource_path,
                 download_to_file)
-        except OSError as e:
+            if os.path.splitext(download_to_file)[1] == '.py':
+                os.chmod(download_to_file, 0755)
+        except IOError as e:
             if e.errno != errno.EISDIR:
                 raise
-
-        if os.path.splitext(download_to_file)[1] == '.py':
-            os.chmod(download_to_file, 0755)
 
     return get_current_working_directory()
 
@@ -206,8 +227,8 @@ def get_package_dir_from_dir(resource_dir, template_variables={}):
     # Deal with ZIP files
     filename, extension = os.path.splitext(resource_dir)
     if extension == '.zip':
-        archive_path = os.path.join(get_blueprint_directory(), resource_dir)
-        target_directory = os.path.join(get_blueprint_directory(), filename)
+        archive_path = os.path.join(get_deployment_directory(), resource_dir)
+        target_directory = os.path.join(get_deployment_directory(), filename)
         resource_dir = filename
         extract_archive_from_path(archive_path, target_directory)
 
@@ -216,9 +237,9 @@ def get_package_dir_from_dir(resource_dir, template_variables={}):
     # This loop goes through a directory defined in resource_dir parameter
     # and prepares a list of paths inside it.
     for resource_path in os.walk(
-            os.path.join(get_blueprint_directory(), resource_dir)):
+            os.path.join(get_deployment_directory(), resource_dir)):
         trimmed_resource_path = get_resource_relative_path(
-            resource_path, os.path.join(get_blueprint_directory()))
+            resource_path, os.path.join(get_deployment_directory()))
 
         if resource_path[2]:
             for filename in resource_path[2]:
@@ -243,13 +264,16 @@ def get_package_dir_from_dir(resource_dir, template_variables={}):
             if e.errno != errno.EEXIST:
                 raise
 
-        ctx.download_resource_and_render(
-            download_from_file,
-            download_to_file,
-            template_variables.copy())
-
-        if os.path.splitext(download_to_file)[1] == '.py':
-            os.chmod(download_to_file, 0755)
+        try:
+            ctx.download_resource_and_render(
+                download_from_file,
+                download_to_file,
+                template_variables.copy())
+            if os.path.splitext(download_to_file)[1] == '.py':
+                os.chmod(download_to_file, 0755)
+        except IOError as e:
+            if e.errno != errno.EISDIR:
+                raise
 
     return get_current_working_directory()
 
@@ -270,14 +294,14 @@ def get_package_dir_from_list(resource_list, template_variables={}):
             resource_list.remove(template_path)
 
             archive_path = os.path.join(
-                get_blueprint_directory(), template_path)
+                get_deployment_directory(), template_path)
             target_directory = os.path.join(
-                get_blueprint_directory(), filename)
+                get_deployment_directory(), filename)
             extract_archive_from_path(archive_path, target_directory)
 
             for extracted_template in os.walk(target_directory):
                 extracted_template_path = get_resource_relative_path(
-                    extracted_template, get_blueprint_directory())
+                    extracted_template, get_deployment_directory())
                 if extracted_template[2]:
                     for filename in extracted_template[2]:
                         resource_list.append(
@@ -289,10 +313,14 @@ def get_package_dir_from_list(resource_list, template_variables={}):
         resource_name = os.path.basename(template_path)
         download_to = os.path.join(
             get_current_working_directory(), resource_name)
-        ctx.download_resource_and_render(
-            template_path,
-            download_to,
-            template_variables.copy())
+        try:
+            ctx.download_resource_and_render(
+                template_path,
+                download_to,
+                template_variables.copy())
+        except IOError as e:
+            if e.errno != errno.EISDIR:
+                raise
 
     return get_current_working_directory()
 
