@@ -195,3 +195,7 @@ $ cfy executions start uninstall -vv -d experiment-no-01
 ```
 
 __If you have a Kubernetes Cluster with Helm and Tiller running, you can install ONAP using the Helm files in `resources/helm`.__
+
+## Examples
+
+For official blueprint examples using this Cloudify plugin, please see [Cloudify Community Blueprints Examples](https://github.com/cloudify-community/blueprint-examples/).
